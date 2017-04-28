@@ -3,12 +3,14 @@ package main
 import (
 	"fmt"
 	"net"
+	"time"
 )
 
 // TCPProxy is proxy for TCP.
 type TCPProxy struct {
-	from string
-	to   string
+	from    string
+	to      string
+	timeout time.Duration
 
 	listner net.Listener // local port server
 }
@@ -43,17 +45,25 @@ func (p *TCPProxy) Serve() {
 	for {
 		fromReq, err := l.Accept()
 		if err != nil {
-			loggingError("Connection on %s, %s", p.from, err.Error())
-			l.Close()
-			return
+			loggingError("Connection from %s, %s", p.from, err.Error())
+			continue
 		}
 
 		toReq, err := net.Dial("tcp", p.to)
 		if err != nil {
-			loggingError("Connection on %s, %s", p.to, err.Error())
-			l.Close()
-			return
+			loggingError("Connection to %s, %s", p.to, err.Error())
+			continue
 		}
-		proxyConn(fromReq, toReq)
+
+		TCPPipe{
+			From:    fromReq,
+			To:      toReq,
+			Timeout: p.timeout,
+			Debug:   _debug,
+		}.Do()
 	}
+}
+
+func (p *TCPProxy) SetTimeout(t time.Duration) {
+	p.timeout = t
 }

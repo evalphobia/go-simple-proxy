@@ -8,15 +8,19 @@ import (
 
 // logger list
 var (
-	infoLogger  = log.New(os.Stdout, "[PROXY INFO] ", log.LstdFlags)
 	errLogger   = log.New(os.Stderr, "[PROXY ERROR] ", log.LstdFlags)
+	infoLogger  = log.New(ioutil.Discard, "[PROXY INFO] ", log.LstdFlags)
 	debugLogger = log.New(ioutil.Discard, "[PROXY DEBUG] ", log.LstdFlags)
 )
 
-// disableLog disables logs.
-func disableLog() {
-	infoLogger.SetOutput(ioutil.Discard)
-	debugLogger.SetOutput(ioutil.Discard)
+// enableInfoLog enables info logs.
+func enableInfoLog() {
+	infoLogger.SetOutput(os.Stdout)
+}
+
+// enableDebugLog enables debug logs.
+func enableDebugLog() {
+	debugLogger.SetOutput(os.Stdout)
 }
 
 // loggingInfo outputs info log.

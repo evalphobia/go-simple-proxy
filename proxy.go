@@ -2,9 +2,8 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"net"
 	"strings"
+	"time"
 )
 
 // ProxyList contains multiple Proxy and handle them.
@@ -37,6 +36,16 @@ func (l ProxyList) String() string {
 	return strings.Join(result, "\n")
 }
 
+func (l ProxyList) SetDefaultTimeout(timeout time.Duration) {
+	if int(timeout) < 1 {
+		return
+	}
+
+	for _, p := range l.list {
+		p.SetTimeout(timeout)
+	}
+}
+
 // ServeAll serves all proxy network.
 func (l *ProxyList) ServeAll() {
 	for _, p := range l.list {
@@ -56,6 +65,7 @@ type Proxy interface {
 	Serve()
 	Close()
 	String() string
+	SetTimeout(time.Duration)
 }
 
 // CreateProxy is a factory function for Proxy.
@@ -76,18 +86,4 @@ func CreateProxy(setting string) (Proxy, error) {
 	default:
 		return nil, fmt.Errorf("unknown protocol, '%s' from '%s'\n%s", part[0], setting, usage)
 	}
-}
-
-// proxyConn sends and receives the network stream.
-func proxyConn(from, to net.Conn) {
-	go func() {
-		if _, err := io.Copy(to, from); err != nil {
-			loggingError("Proxy request on %s:%s, %s", from.LocalAddr(), to.LocalAddr(), err.Error())
-		}
-	}()
-	go func() {
-		if _, err := io.Copy(from, to); err != nil {
-			loggingError("Proxy response on %s:%s, %s", from.LocalAddr(), to.LocalAddr(), err.Error())
-		}
-	}()
 }
