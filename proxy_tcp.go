@@ -4,7 +4,12 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"gopkg.in/eapache/go-resiliency.v1/retrier"
 )
+
+// DefaultRetrier is default retry strategy when net.Dial to the destination is failed.
+var DefaultRetrier = retrier.New(retrier.ExponentialBackoff(5, 200*time.Millisecond), nil)
 
 // TCPProxy is proxy for TCP.
 type TCPProxy struct {
@@ -13,6 +18,7 @@ type TCPProxy struct {
 	timeout time.Duration
 
 	listner net.Listener // local port server
+	retry   *retrier.Retrier
 }
 
 // newTCPProxy creates TCPProxy with initialized local port listener.
@@ -25,6 +31,7 @@ func newTCPProxy(from, to string) (*TCPProxy, error) {
 		from:    from,
 		to:      to,
 		listner: l,
+		retry:   DefaultRetrier,
 	}, nil
 }
 
@@ -49,18 +56,24 @@ func (p *TCPProxy) Serve() {
 			continue
 		}
 
-		toReq, err := net.Dial("tcp", p.to)
-		if err != nil {
-			loggingError("Connection to %s, %s", p.to, err.Error())
-			continue
-		}
+		err = p.retry.Run(func() error {
+			toReq, err := net.Dial("tcp", p.to)
+			if err != nil {
+				loggingError("Connection to %s, %s", p.to, err.Error())
+				return err
+			}
 
-		TCPPipe{
-			From:    fromReq,
-			To:      toReq,
-			Timeout: p.timeout,
-			Debug:   _debug,
-		}.Do()
+			TCPPipe{
+				From:    fromReq,
+				To:      toReq,
+				Timeout: p.timeout,
+				Debug:   _debug,
+			}.Do()
+			return nil
+		})
+		if err != nil {
+			loggingError("Give up connection to %s, %s", p.to, err.Error())
+		}
 	}
 }
 
